@@ -1,0 +1,71 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env/
+.venv/
+env/
+venv/
+ENV/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Installer logs
+pip-log.txt
+
+# Unit test / coverage
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# MyPy / Pyright
+.mypy_cache/
+.pyright/
+
+# PyCharm / VSCode
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# MacOS / Linux
+.DS_Store
+*.swp
+*.swo
+
+# Jupyter notebooks
+.ipynb_checkpoints
+
+# Autotrainer result outputs (optional)
+results/
+outputs/
+logs/
+
+# YAML experiment cache or outputs
+*.log
+*.out
+*.err
+
+# Ignore examples’ local artifacts
+examples/__pycache__/
+examples/*.log
+examples/*.out
+examples/results/
