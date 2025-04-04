@@ -7,7 +7,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from neuropilot.result_manager import ResultManager, create_result
+from neuropilot.results import ResultManager, create_result
 
 class TestResultManager(unittest.TestCase):
     def setUp(self):

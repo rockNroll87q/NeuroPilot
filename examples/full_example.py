@@ -24,7 +24,7 @@ import pandas as pd
 from multiprocessing import Manager
 from neuropilot import ConfigLoader, JobCreator, JobRunner
 from neuropilot.aggregation import aggregate_results
-from neuropilot.result_manager import ResultManager, create_result
+from neuropilot.results import ResultManager, create_result
 
 # ------------------------------
 # Example config (could be YAML)
