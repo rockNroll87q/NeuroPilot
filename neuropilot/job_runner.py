@@ -179,10 +179,13 @@ class JobRunner:
 
     # --- Optional lifecycle hooks ---
     def on_job_start(self, job: Dict):
-        print(f"Starting job: {job['job_id']}")
+        # print(f"Starting job: {job['job_id']}")
+        pass
 
     def on_job_success(self, job: Dict):
-        print(f"Completed job: {job['job_id']}")
+        # print(f"Completed job: {job['job_id']}")
+        pass
 
     def on_job_failure(self, job: Dict, error: Exception):
-        print(f"Job failed: {job['job_id']} with error: {error}")
+        # print(f"Job failed: {job['job_id']} with error: {error}")
+        pass
