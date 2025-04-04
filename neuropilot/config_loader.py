@@ -84,11 +84,8 @@ Validation Rules:
 """
 
 import yaml
-import itertools
 from typing import List, Dict, Union, Any, Set
 from pathlib import Path
-
-from loguru import logger
 
 class InheritanceError(Exception):
     """Raised when inheritance resolution fails (e.g. due to cycles or missing base)."""

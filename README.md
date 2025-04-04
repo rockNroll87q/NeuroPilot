@@ -196,4 +196,4 @@ python -m unittest discover tests
 ```
 
 **Author**: Austin Dibble / Brain Imaging and Artificial Intelligence Research Lab
-**License**: 
+**License**: MIT

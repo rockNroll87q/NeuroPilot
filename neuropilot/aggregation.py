@@ -20,7 +20,6 @@ example:
 import pandas as pd
 from typing import List, Dict, Optional
 
-
 def aggregate_results(
     results: List[Dict],
     index_fields: Optional[List[str]] = None,
