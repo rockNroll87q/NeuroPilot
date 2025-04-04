@@ -82,15 +82,22 @@ class TestResultManager(unittest.TestCase):
         # self.assertNotIn("task_name", collected[0])  # Inference skipped due to root mismatch
 
     def test_infer_metadata_failure_due_to_path_mismatch(self):
-        # Emit manually to cause mismatch with pattern
+        # Create a result file that does NOT match the output_pattern structure
         mgr = ResultManager(self.tmpdir, output_pattern="{task_name}/{dataset_name}/{job_id}.json")
         bad_path = Path(self.tmpdir) / "unexpected" / "wrong.json"
         bad_path.parent.mkdir(parents=True)
         with open(bad_path, "w") as f:
             json.dump({"job_id": "bad"}, f)
 
-        with self.assertRaises(ValueError):
-            mgr.collect_results()
+        # Case 1: Non-strict mode — should skip silently and return nothing
+        results = mgr.collect_results(strict=False)
+        self.assertEqual(len(results), 0)
+
+        # Case 2: Strict mode — should log a warning and still return nothing
+        # We won't test the logger output directly, just that it doesn't raise
+        results_strict = mgr.collect_results(strict=True)
+        self.assertEqual(len(results_strict), 0)
+
 
     def test_emit_and_load_multiple_results(self):
         mgr = ResultManager(self.tmpdir, output_pattern="{task_name}/{dataset_name}/{job_id}.json")

@@ -30,7 +30,6 @@ example:
 
 import multiprocessing
 from typing import List, Dict, Optional, Callable
-
 from loguru import logger
 
 class JobRunner:

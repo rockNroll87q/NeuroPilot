@@ -183,17 +183,23 @@ class ResultManager:
 
         return path
 
-    def collect_results(self, root_dir: Optional[Union[str, Path]] = None, infer_metadata:bool=True) -> List[Dict]:
+    def collect_results(
+        self,
+        root_dir: Optional[Union[str, Path]] = None,
+        infer_metadata: bool = True,
+        strict: bool = False
+    ) -> List[Dict]:
         """
         Recursively collect all result files under the specified output directory.
         Metadata for dataset_name and task_name can be inferred if the `output_pattern`
-        on this class instance was set, and will be added to the yielded objects. To 
-        do this, use `infer_metadata=True`.
+        on this class instance was set, and will be added to the yielded objects.
 
         Args:
             root_dir (str or Path): Directory to start scanning from.
                 Defaults to the configured root_dir. If overridden, metadata inference will be skipped.
             infer_metadata (bool): Whether to infer the metadata keys from the path pattern.
+            strict (bool): If True, issue warnings for files skipped due to mismatched structure.
+                        Otherwise, skip silently.
 
         Returns:
             List[dict]: List of parsed result dictionaries, enriched with inferred metadata when possible.
@@ -202,13 +208,25 @@ class ResultManager:
         results = []
 
         if root_dir is not None and infer_metadata and root != self.root_dir:
-            logger.warning('collect_results root_dir is set and infer_metadata is True. If you desire metadata to be inferred, the root must match the original specified for the class instance!')
+            logger.warning(
+                "collect_results root_dir is set and infer_metadata is True. "
+                "If you desire metadata to be inferred, the root must match the original specified for the class instance!"
+            )
 
         for file in root.rglob("*"):
             if not file.is_file():
                 continue
             if file.suffix not in {".json", ".yaml", ".yml"}:
                 continue
+
+            # Try filtering files based on whether they match the pattern
+            if infer_metadata and (root_dir is None or root == self.root_dir):
+                try:
+                    _ = self._infer_metadata_from_path(file)
+                except Exception:
+                    if strict:
+                        logger.warning(f"Skipping file (does not match output_pattern): {file}. Want to ignore this? Set strict=False.")
+                    continue
 
             try:
                 with open(file, "r") as f:
@@ -217,11 +235,12 @@ class ResultManager:
                     else:
                         data = yaml.safe_load(f)
 
-                if (root_dir is None or (root == self.root_dir)) and infer_metadata:
+                if infer_metadata and (root_dir is None or root == self.root_dir):
                     metadata = self._infer_metadata_from_path(file)
                     data.update(metadata)
 
                 results.append(data)
+
             except Exception as e:
                 raise ValueError(
                     f"Failed to parse result file: {file}\n"
