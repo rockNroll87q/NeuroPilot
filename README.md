@@ -110,7 +110,7 @@ For a complete outline of the definitions YAML protocol format, see [`spec.md`](
 
 ## 📊 Result Creation & Collection
 
-AutoTrainer also includes a flexible and optional result management system via the `ResultManager` class. This allows you to:
+AutoTrainer also includes a flexible and optional result management system via the `ResultEmitter` class. This allows you to:
 
 ✅ Automatically emit per-job result files in `.json` or `.yaml`  
 ✅ Structure your output using configurable file path patterns  
@@ -120,10 +120,10 @@ AutoTrainer also includes a flexible and optional result management system via t
 ### 🔧 Emitting Results
 
 ```python
-from neuropilot import ResultManager
+from neuropilot import ResultEmitter
 
 # Define output layout and format
-manager = ResultManager(
+manager = ResultEmitter(
     root_dir="results",
     output_pattern="{task_name}/{dataset_name}/{job_id}.json",
     fmt="json"
@@ -146,7 +146,7 @@ results/finetune/dataset_alpha/job123.json
 ### 📥 Collecting Results
 
 ```python
-all_results = manager.collect_results()
+all_results = manager.collect()
 ```
 
 By default, any metadata that can be inferred from the file path (e.g., `task_name`, `dataset_name`) will be added back to each result object.
@@ -154,8 +154,71 @@ By default, any metadata that can be inferred from the file path (e.g., `task_na
 You can also opt-out of metadata inference, or override the root directory:
 
 ```python
-manager.collect_results(root_dir="custom_results", infer_metadata=False)
+manager.collect(root_dir="custom_results", infer_metadata=False)
 ```
+
+### Collecting Results from 3rd Party Frameworks
+
+**On Disk**
+If using a 3rd-party framework (like Wandb), then you can instead use the `ResultLoader`
+with custom collection patterns to grab result files from disk:
+
+```python
+collector = ResultLoader(
+    root_dir="wandb/",
+    pattern="*/files/results-{job_id}.yaml",
+    fmt="yaml",
+    infer_metadata=True
+)
+
+results = collector.collect(strict=True)
+
+```
+
+**From a Custom API**
+
+For full flexibility, you can subclass `ResultFetcher` to pull results from APIs
+like WandB, MLflow, or even your own service. The only requirement is that you return
+a dictionary that matches the expected result schema.
+
+✅ Using WandB (Requires wandb package to be already installed)
+
+```python
+from neuropilot.results import WandbFetcher
+
+fetcher = WandbFetcher(project="my_project", entity="my_team")
+results = fetcher.collect(jobs)  # `jobs` is a list of job dicts
+```
+
+    ℹ️ `WandbFetcher` is an optional utility and only works if wandb is installed.
+
+✅ Using a Custom API Client
+
+```python
+from neuropilot.results import ResultFetcher
+
+class MyAPIClient(ResultFetcher):
+    def fetch_result(self, job):
+        job_id = job["job_id"]
+        # Simulate fetching result from your custom API
+        result_data = my_api.get_result_by_id(job_id)
+
+        return {
+            "job_id": job_id,
+            "results": result_data["metrics"],
+            "status": result_data["status"],
+            "params": job.get("params", {}),
+            "dataset_name": job.get("dataset_name"),
+            "task_name": job.get("task_name"),
+        }
+
+# Usage
+client = MyAPIClient()
+results = client.collect(jobs)
+```
+
+Results from either method (disk or API) are compatible with `aggregate_results()`
+(see below) for building summary tables, comparisons, and filtering.
 
 ## 📊 Aggregating and Comparing Results
 
@@ -164,7 +227,8 @@ Once you’ve emitted results for each job, you can aggregate them into a struct
 ```python
 from neuropilot import aggregate_results
 
-results = manager.collect_results()
+manager = # One of the job collectors
+results = # manager collection function
 
 # Aggregate into a comparison table
 df = aggregate_results(

@@ -1,8 +1,6 @@
 import unittest
-from neuropilot import ConfigLoader, ConfigValidationError
-
-import unittest
-from neuropilot import _resolve_task_inheritance, InheritanceError
+from neuropilot import ConfigLoader, ConfigValidationError, InheritanceError
+from neuropilot.config_loader import _resolve_task_inheritance
 
 class TestExperimentInheritance(unittest.TestCase):
 
