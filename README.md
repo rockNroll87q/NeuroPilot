@@ -195,9 +195,9 @@ results = fetcher.collect(jobs)  # `jobs` is a list of job dicts
 ✅ Using a Custom API Client
 
 ```python
-from neuropilot.results import ResultFetcher
+from neuropilot.results import RemoteResultFetcher
 
-class MyAPIClient(ResultFetcher):
+class MyAPIClient(RemoteResultFetcher):
     def fetch_result(self, job):
         job_id = job["job_id"]
         # Simulate fetching result from your custom API
