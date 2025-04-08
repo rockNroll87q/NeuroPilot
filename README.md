@@ -160,6 +160,7 @@ manager.collect(root_dir="custom_results", infer_metadata=False)
 ### Collecting Results from 3rd Party Frameworks
 
 **On Disk**
+
 If using a 3rd-party framework (like Wandb), then you can instead use the `ResultLoader`
 with custom collection patterns to grab result files from disk:
 
@@ -260,4 +261,5 @@ python -m unittest discover tests
 ```
 
 **Author**: Austin Dibble / Brain Imaging and Artificial Intelligence Research Lab
+
 **License**: MIT
