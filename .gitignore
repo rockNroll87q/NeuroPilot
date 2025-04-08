@@ -55,8 +55,6 @@ coverage.xml
 .ipynb_checkpoints
 
 # Autotrainer result outputs (optional)
-results/
-outputs/
 logs/
 
 # YAML experiment cache or outputs
