@@ -25,7 +25,8 @@ Structure:
 
     Inheritance:
         - An task may extend another by key name
-        - Inherited fields are merged, with child fields overriding parent fields
+        - Inherited fields are merged, with child fields overriding parent fields. 
+            This also applies to param_sets overriding static fields. param_sets will be merged.
         - Inheritance is resolved before validation
         - Cycles or undefined parents raise validation errors
 
@@ -84,28 +85,16 @@ Validation Rules:
 """
 
 import yaml
-from typing import List, Dict, Union, Any, Set
+from typing import List, Dict, Union, Any, Set, Optional, Tuple
 from pathlib import Path
 
 class InheritanceError(Exception):
     """Raised when inheritance resolution fails (e.g. due to cycles or missing base)."""
     pass
 
-def _resolve_task_inheritance(tasks: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-    """
-    Resolves inheritance for task definitions.
-    
-    Args:
-        tasks (dict): Raw tasks dictionary from config, possibly with 'extends' keys.
-
-    Returns:
-        dict: A new dict with inheritance fully resolved and all fields flattened.
-    
-    Raises:
-        InheritanceError: If a cycle is detected or an undefined parent is referenced.
-    """
+def _resolve_task_inheritance(tasks: Dict[str, Dict[str, Any]]) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Set[str]]]:
     resolved = {}
-    seen = set()
+    inherited_keys = {}
 
     def resolve(key: str, trail: Set[str]) -> Dict[str, Any]:
         if key in resolved:
@@ -121,30 +110,45 @@ def _resolve_task_inheritance(tasks: Dict[str, Dict[str, Any]]) -> Dict[str, Dic
         base_key = exp.get("extends")
 
         if not base_key:
-            resolved[key] = dict(exp)  # Make a copy
+            resolved[key] = dict(exp)
+            inherited_keys[key] = set()
             return resolved[key]
 
-        # Recursive resolution
         trail.add(key)
         base = resolve(base_key, trail)
         trail.remove(key)
 
         # Merge base and child
         merged = dict(base)
-        merged.update({k: v for k, v in exp.items() if k != "extends"})  # Child overrides base
-        resolved[key] = merged
+        inherited = set(merged.keys())
 
+        # Handle 'param_set' merge manually
+        child_param_set = exp.get("param_set", {})
+        base_param_set = base.get("param_set", {})
+
+        # Merge param_set with child override
+        if isinstance(base_param_set, dict) and isinstance(child_param_set, dict):
+            merged_param_set = dict(base_param_set)
+            merged_param_set.update(child_param_set)
+            merged["param_set"] = merged_param_set
+        elif "param_set" in exp:
+            merged["param_set"] = child_param_set
+        elif "param_set" in base:
+            merged["param_set"] = base_param_set
+
+        # Update the rest (excluding extends and param_set)
+        merged.update({k: v for k, v in exp.items() if k not in {"extends", "param_set"}})
+
+
+        resolved[key] = merged
+        inherited_keys[key] = inherited
         return merged
 
     for key in tasks:
         resolve(key, set())
 
-    # # Clean up, get rid of inheritance keys
-    # for key in tasks:
-    #     if "extends" in tasks[key]:
-    #         del tasks[key]["extends"]
+    return resolved, inherited_keys
 
-    return resolved
 
 class ConfigValidationError(Exception):
     """Raised when the configuration is invalid."""
@@ -224,8 +228,9 @@ class ConfigLoader:
         if not isinstance(datasets, dict):
             raise ConfigValidationError("Missing or invalid 'datasets' section. Must be a dictionary.")
 
-        tasks = _resolve_task_inheritance(tasks)
-        config["tasks"] = tasks # Update config object
+        tasks, inherited_keys = _resolve_task_inheritance(tasks)
+        config["tasks"] = tasks
+        self._inherited_keys = inherited_keys
 
         self._validate_tasks(tasks)
 
@@ -282,32 +287,39 @@ conflict with those given in the dataset definition '{dataset_name}'. Use overri
         return config
     
     def _validate_tasks(self, tasks:dict):
-        for exp_name, exp_def in tasks.items():
-            if not isinstance(exp_def, dict):
-                raise ConfigValidationError(f"Experiment '{exp_name}' must be a dictionary.")
-            if "param_set" in exp_def:
-                self._check_param_conflicts(exp_name, exp_def)
+        for task_name, task_def in tasks.items():
+            inherited = self._inherited_keys.get(task_name, set())
+            self._check_param_conflicts(task_name, task_def, inherited_keys=inherited)
 
-    def _check_param_conflicts(self, scope_name: str, exp_def: dict):
+    def _check_param_conflicts(self, scope_name: str, exp_def: dict, inherited_keys: Optional[Set[str]] = None):
         """
-        Ensure no overlap between static params and param_set keys.
+        Ensure no overlap between static params and param_set keys, unless they're inherited (and intended to be overridden).
 
         Args:
             scope_name (str): Name of the task or dataset+task scope
             exp_def (dict): The definition containing static keys and param_set
+            inherited_keys (set[str] or None): If provided, keys from a parent that are considered defaultable
 
         Raises:
-            ConfigValidationError: If conflicts are found.
+            ConfigValidationError: If conflicts are found that are not inherited
         """
         static_keys = ConfigLoader._get_object_user_vars(exp_def)
         param_set = exp_def.get("param_set", {})
+
         if not isinstance(param_set, dict):
             raise ConfigValidationError(f"In '{scope_name}', 'param_set' must be a dictionary.")
-        conflicts = static_keys & set(param_set.keys())
+
+        param_keys = set(param_set.keys())
+
+        # Exclude inherited keys from the conflict set
+        check_keys = static_keys if inherited_keys is None else (static_keys - inherited_keys)
+        conflicts = check_keys & param_keys
+
         if conflicts:
             raise ConfigValidationError(
                 f"In '{scope_name}', the following keys appear in both static fields and param_set: {sorted(conflicts)}"
             )
+
     
     def _check_user_var_conflicts(self, global_def:dict, local_def:dict):
         """

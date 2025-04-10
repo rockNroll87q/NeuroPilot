@@ -2,6 +2,119 @@ import unittest
 from neuropilot import ConfigLoader, ConfigValidationError, InheritanceError
 from neuropilot.config_loader import _resolve_task_inheritance
 
+
+import unittest
+from neuropilot.config_loader import ConfigLoader, ConfigValidationError
+
+class TestParamSetMergingInInheritance(unittest.TestCase):
+    def test_paramset_merging_with_overrides(self):
+        config = {
+            "tasks": {
+                "base_task": {
+                    "script": "train.py",
+                    "param_set": {
+                        "dropout": [0.1],
+                        "batch_size": [32, 64],
+                        "optimizer": ["adam"]
+                    }
+                },
+                "extended_task": {
+                    "extends": "base_task",
+                    "param_set": {
+                        "dropout": [0.2],  # override
+                        "learning_rate": [1e-3, 1e-4]  # new key
+                    }
+                }
+            },
+            "datasets": {
+                "ds1": {
+                    "root": "/data/path",
+                    "tasks": [
+                        {"name": "extended_task"}
+                    ]
+                }
+            }
+        }
+
+        loader = ConfigLoader(config)
+        validated = loader.load()
+        final_task = validated["tasks"]["extended_task"]
+
+        expected_param_set = {
+            "dropout": [0.2],             # overridden
+            "batch_size": [32, 64],       # inherited
+            "optimizer": ["adam"],        # inherited
+            "learning_rate": [1e-3, 1e-4]  # new
+        }
+
+        self.assertIn("param_set", final_task)
+        self.assertEqual(final_task["param_set"], expected_param_set)
+
+
+
+class TestInheritanceParamSetOverride(unittest.TestCase):
+    def test_paramset_override_inherited_static(self):
+        # This config should be valid
+        config = {
+            "tasks": {
+                "base_task": {
+                    "script": "train.py",
+                    "batch_size": 32,
+                    "epochs": 10
+                },
+                "sweep_variant": {
+                    "extends": "base_task",
+                    "param_set": {
+                        "batch_size": [64, 128]  # Overrides inherited static key
+                    }
+                }
+            },
+            "datasets": {
+                "ds1": {
+                    "root": "/data/foo",
+                    "tasks": [
+                        {"name": "sweep_variant"}
+                    ]
+                }
+            }
+        }
+
+        try:
+            loader = ConfigLoader(config)
+            validated = loader.load()
+            self.assertIn("sweep_variant", validated["tasks"])
+        except ConfigValidationError as e:
+            self.fail(f"Config should have been valid, but raised error: {e}")
+
+    def test_conflict_in_same_task_should_fail(self):
+        # This config should raise a validation error
+        config = {
+            "tasks": {
+                "bad_task": {
+                    "script": "train.py",
+                    "batch_size": 32,
+                    "param_set": {
+                        "batch_size": [64, 128]  # Conflict not allowed without inheritance
+                    }
+                }
+            },
+            "datasets": {
+                "ds1": {
+                    "root": "/data/foo",
+                    "tasks": [
+                        {"name": "bad_task"}
+                    ]
+                }
+            }
+        }
+
+        with self.assertRaises(ConfigValidationError) as context:
+            loader = ConfigLoader(config)
+            loader.load()
+
+        self.assertIn("both static fields and param_set", str(context.exception))
+
+
 class TestExperimentInheritance(unittest.TestCase):
 
     def test_single_inheritance(self):
@@ -9,7 +122,7 @@ class TestExperimentInheritance(unittest.TestCase):
             "base": {"epochs": 10, "learning_rate": 0.1},
             "child": {"extends": "base", "learning_rate": 0.01}
         }
-        resolved = _resolve_task_inheritance(tasks)
+        resolved, _ = _resolve_task_inheritance(tasks)
         self.assertEqual(resolved["child"]["epochs"], 10)
         self.assertEqual(resolved["child"]["learning_rate"], 0.01)
 
@@ -19,7 +132,7 @@ class TestExperimentInheritance(unittest.TestCase):
             "mid": {"extends": "base", "optimizer": "adam"},
             "final": {"extends": "mid", "lr": 0.001}
         }
-        resolved = _resolve_task_inheritance(tasks)
+        resolved, _ = _resolve_task_inheritance(tasks)
         self.assertEqual(resolved["final"]["epochs"], 10)
         self.assertEqual(resolved["final"]["optimizer"], "adam")
         self.assertEqual(resolved["final"]["lr"], 0.001)
@@ -28,7 +141,7 @@ class TestExperimentInheritance(unittest.TestCase):
         tasks = {
             "plain": {"epochs": 20, "lr": 0.2}
         }
-        resolved = _resolve_task_inheritance(tasks)
+        resolved, _ = _resolve_task_inheritance(tasks)
         self.assertEqual(resolved["plain"]["epochs"], 20)
         self.assertEqual(resolved["plain"]["lr"], 0.2)
 
@@ -56,7 +169,7 @@ class TestExperimentInheritance(unittest.TestCase):
             "child": {"extends": "base", "y": 20, "z": 30},
             "grandchild": {"extends": "child", "z": 300}
         }
-        resolved = _resolve_task_inheritance(tasks)
+        resolved, _ = _resolve_task_inheritance(tasks)
         self.assertEqual(resolved["grandchild"]["x"], 1)
         self.assertEqual(resolved["grandchild"]["y"], 20)
         self.assertEqual(resolved["grandchild"]["z"], 300)
