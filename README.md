@@ -33,7 +33,7 @@ NeuroPilot/
 pip install -r requirements.txt  # currently none strictly required
 ```
 
-2. **Create a config file**:
+2. **Create a config file (YAML example)**:
 
 ```yaml
 tasks:
@@ -62,7 +62,7 @@ datasets:
 ```python
 from neuropilot import ConfigLoader, JobCreator
 
-loader = ConfigLoader("examples/basic.yml")
+loader = ConfigLoader("examples/basic.yml") # alternatively, load from .json
 validated_config = loader.load()
 
 creator = JobCreator(validated_config)
@@ -89,7 +89,7 @@ runner.run()
 
 ## Features
 
-- Simple, declarative YAML task definitions  
+- Simple, declarative YAML/JSON task definitions  
 - Dataset-specific overrides and parameter sweeps  
 - Reusable task definitions with support for inheritance and merging  
 - Automatic expansion into per-job configurations  
@@ -112,7 +112,7 @@ Additionally, run any of the above using `examples/proc_example.py <path>` to se
 
 ## 📄 Spec
 
-For a complete outline of the definitions YAML protocol format, see [`spec.md`](spec.md).
+For a complete outline of the definitions protocol format, see [`spec.md`](spec.md).
 
 ## 📊 Result Creation & Collection
 

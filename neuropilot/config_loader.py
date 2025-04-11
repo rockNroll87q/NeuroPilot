@@ -94,6 +94,7 @@ Validation Rules:
 """
 
 import yaml
+import json
 from typing import List, Dict, Union, Any, Set, Optional, Tuple
 from pathlib import Path
 
@@ -196,6 +197,45 @@ class ConfigLoader:
         self._raw_config = self._load_source()
         self._validated_config = self._validate(self._raw_config)
         return self._validated_config
+    
+    def save_raw(self, path: Union[str, Path]):
+        """
+        Save the raw (unvalidated) config to a file (.json or .yaml).
+
+        Args:
+            path (str or Path): Path to write to. Extension determines format.
+        """
+        if self._raw_config is None:
+            raise ValueError("Raw config is not loaded yet.")
+
+        path = Path(path)
+        with open(path, 'w') as f:
+            if path.suffix == ".json":
+                json.dump(self._raw_config, f, indent=2)
+            elif path.suffix in {".yml", ".yaml"}:
+                yaml.safe_dump(self._raw_config, f)
+            else:
+                raise ValueError("Unsupported file extension for saving. Use .json or .yaml")
+
+    def save_validated(self, path: Union[str, Path]):
+        """
+        Save the validated (fully resolved) config to a file (.json or .yaml).
+
+        Args:
+            path (str or Path): Path to write to. Extension determines format.
+        """
+        if self._validated_config is None:
+            raise ValueError("Validated config is not available. Call `load()` first.")
+
+        path = Path(path)
+        with open(path, 'w') as f:
+            if path.suffix == ".json":
+                json.dump(self._validated_config, f, indent=2)
+            elif path.suffix in {".yml", ".yaml"}:
+                yaml.safe_dump(self._validated_config, f)
+            else:
+                raise ValueError("Unsupported file extension for saving. Use .json or .yaml")
+
 
     def _load_source(self) -> dict:
         """
@@ -207,8 +247,13 @@ class ConfigLoader:
         Raises:
             TypeError: If input is not a str or dict.
         """
-        if isinstance(self._source, str) or isinstance(self._source, Path):
-            with open(self._source, 'r') as f:
+        if isinstance(self._source, (str, Path)):
+            path = Path(self._source)
+            if not path.exists():
+                raise FileNotFoundError(f"Config file not found: {path}")
+            with open(path, 'r') as f:
+                if path.suffix == ".json":
+                    return json.load(f)
                 return yaml.safe_load(f)
         elif isinstance(self._source, dict):
             return self._source
