@@ -21,33 +21,33 @@ class JobInspector:
     def __init__(self, validated_config: dict):
         self.config = validated_config
         self.jobs = JobCreator(validated_config).create()
-        self._pp = pprint.PrettyPrinter(indent=2)
+        self.printer = print # Can be overridden
 
     def summarize(self):
         """
         Print a high-level summary of tasks, datasets, and job expansion.
         """
-        print("\n Summary Report")
-        print("=" * 30)
-        print(f"Total tasks defined: {len(self.config['tasks'])}")
-        print(f"Total datasets: {len(self.config['datasets'])}")
-        print(f"Total jobs expanded: {len(self.jobs)}\n")
+        self.printer("\n Summary Report")
+        self.printer("=" * 30)
+        self.printer(f"Total tasks defined: {len(self.config['tasks'])}")
+        self.printer(f"Total datasets: {len(self.config['datasets'])}")
+        self.printer(f"Total jobs expanded: {len(self.jobs)}\n")
 
         # Per-dataset/task summary
         combos = defaultdict(int)
         for job in self.jobs:
             combos[(job["dataset_name"], job["task_name"])] += 1
 
-        print(" Job Variants Per Dataset/Task:")
+        self.printer(" Job Variants Per Dataset/Task:")
         for (ds, task), count in sorted(combos.items()):
-            print(f"  - {ds} / {task}: {count} variants")
+            self.printer(f"  - {ds} / {task}: {count} variants")
 
     def check_warnings(self):
         """
         Detect potential issues or inefficiencies in the configuration.
         """
-        print("\n  Warnings")
-        print("=" * 30)
+        self.printer("\n  Warnings")
+        self.printer("=" * 30)
 
         all_task_defs = set(self.config["tasks"])
         all_used_tasks = set()
@@ -58,22 +58,22 @@ class JobInspector:
 
         unused_tasks = all_task_defs - all_used_tasks
         if unused_tasks:
-            print(f"  - Unused task(s) defined but never referenced: {sorted(unused_tasks)}")
+            self.printer(f"  - Unused task(s) defined but never referenced: {sorted(unused_tasks)}")
 
         # Add other rule checks if needed
 
         if not unused_tasks:
-            print("  No warnings found.")
+            self.printer("  No warnings found.")
 
-    def print_sample_jobs(self, n=3):
-        """
-        Show a few fully-resolved jobs.
-        """
-        print(f"\n Sample Jobs (showing {n})")
-        print("=" * 30)
+    def print_sample_jobs(self, n: int = 5):
+        if not self.jobs:
+            self.printer("No jobs available.")
+            return
+
+        self.printer(f"\n Sample Jobs (showing {n})\n" + "="*30 + "\n")
         for job in self.jobs[:n]:
-            self._pp.pprint(job)
-            print()
+            formatted = pprint.pformat(job, indent=2)
+            self.printer(formatted)
 
     def estimate_param_columns(self) -> List[str]:
         """
