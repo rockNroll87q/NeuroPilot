@@ -45,25 +45,44 @@ class JobInspector:
     def check_warnings(self):
         """
         Detect potential issues or inefficiencies in the configuration.
+        Suppresses unused warnings for tasks extended by used ones.
         """
         self.printer("\n  Warnings")
         self.printer("=" * 30)
 
-        all_task_defs = set(self.config["tasks"])
+        tasks = self.config["tasks"]
+        all_task_defs = set(tasks)
         all_used_tasks = set()
 
+        # 1. Get directly used task names from datasets
         for dataset in self.config["datasets"].values():
             for entry in dataset["tasks"]:
                 all_used_tasks.add(entry["name"])
 
-        unused_tasks = all_task_defs - all_used_tasks
+        # 2. Build reverse inheritance tree
+        reverse_inherits = {k: set() for k in tasks}
+        for child, details in tasks.items():
+            parent = details.get("extends")
+            if parent:
+                reverse_inherits[parent].add(child)
+
+        # 3. Recursively gather all indirectly used via inheritance
+        def gather_descendants(task):
+            children = reverse_inherits.get(task, set())
+            return children | {c for child in children for c in gather_descendants(child)}
+
+        indirectly_used = set()
+        for used in all_used_tasks:
+            indirectly_used |= gather_descendants(used)
+
+        final_used = all_used_tasks | indirectly_used
+        unused_tasks = all_task_defs - final_used
+
         if unused_tasks:
             self.printer(f"  - Unused task(s) defined but never referenced: {sorted(unused_tasks)}")
-
-        # Add other rule checks if needed
-
-        if not unused_tasks:
+        else:
             self.printer("  No warnings found.")
+
 
     def print_sample_jobs(self, n: int = 5):
         if not self.jobs:
