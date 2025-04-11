@@ -3,6 +3,11 @@ import os
 from typing import Optional, Dict
 
 
+from dataclasses import dataclass
+import os
+from typing import Optional, Dict
+
+
 @dataclass
 class JobContext:
     """
@@ -26,7 +31,8 @@ class JobContext:
 
     Usage:
         ctx = JobContext.from_env()
-        wandb.init(name=ctx.job_id)
+        if ctx.is_set():
+            wandb.init(name=ctx.job_id)
         print(ctx.summary())
     """
     job_id: str
@@ -73,3 +79,12 @@ class JobContext:
 
     def log_prefix(self) -> str:
         return f"{self.task_name or 'job'}:{self.dataset_name or 'data'}:{self.job_id}"
+
+    def is_set(self) -> bool:
+        """
+        Returns True if the context appears to be meaningfully initialized.
+        """
+        if self.job_id == "unknown":
+            return False
+        return any([self.dataset_name, self.task_name, self.group])
+    
