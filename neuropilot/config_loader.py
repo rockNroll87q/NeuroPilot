@@ -18,17 +18,22 @@ Structure:
 1. tasks:
     A dictionary of globally defined task templates.
     Each task includes:
-        - static parameters (epochs, lr, etc.)
-        - param_set (optional): keys with lists of values to sweep
+        - static parameters (e.g., epochs, lr)
+        - param_set (optional): defines keys with lists of values to sweep
         - extends (optional): inherit fields from another task
         - description (optional): string to describe this task
 
     Inheritance:
-        - An task may extend another by key name
-        - Inherited fields are merged, with child fields overriding parent fields. 
-            This also applies to param_sets overriding static fields. param_sets will be merged.
+        - A task may extend another task using the 'extends' key
+        - All static fields are inherited and overridden by the child
+        - param_sets are **merged** across inheritance and dataset levels:
+            * Keys from lower levels (e.g., dataset, task entry) override higher levels (e.g., base task)
+            * Keys not overridden are preserved
+            * The resulting param_set is the merged union of all levels
+        - If a param_set key is set to null (YAML `~` or Python `None`), it will explicitly remove that key from the inherited sweep
         - Inheritance is resolved before validation
         - Cycles or undefined parents raise validation errors
+
 
     Example:
     tasks:
@@ -40,19 +45,21 @@ Structure:
       finetune_all:
         extends: base_finetune
         finetune_all_layers: true
+        param_set:
+          dropout: [0.1, 0.2]
 
 2. datasets:
     Dataset-specific job instructions. Each dataset includes:
-        - root (str): base path to dataset
-        - description (str) (optional): string to describe this dataset
-        - override (optional): dataset-wide param override for all tasks
-        - param_set (optional): dataset-wide param sweep for all tasks
-        - other static params may be defined here
-        - tasks: list of tasks to run
-            - name: task key from global section
+        - root (str): base path to the dataset
+        - description (optional): string to describe this dataset
+        - override (optional): static parameter overrides applied to all tasks
+        - param_set (optional): param sweep definitions applied to all tasks
+        - additional static parameters may also be defined
+        - tasks: list of task runs, each including:
+            - name: reference to a task defined above
             - override (optional): static parameter overrides
-            - param_set (optional): replaces higher-level param_set
-            - description (optional): string to describe this specific run
+            - param_set (optional): param sweep for this specific run
+            - description (optional): optional description for this run
 
     Example:
     datasets:
@@ -70,18 +77,20 @@ Structure:
               learning_rate: 2e-5
             param_set:
               finetune_depth: [1, 3]
+              dropout: null  # Explicitly remove dropout sweep inherited from above
 
 Precedence:
-    - override > local param_set > dataset-level param_set > global param_set > static params
-    - param_set expands to cartesian product of values
-    - Conflicts between static and param_set keys in the same scope raise validation errors
+    - override > entry-level param_set > dataset-level param_set > global (task-level) param_set > static params
+    - param_sets are merged, not replaced — later definitions override earlier ones only at the key level
+    - param_set expands to the cartesian product of the final merged sweep
+    - param_set keys must not conflict with static fields at the same scope
+    - Inherited param_set keys can be removed by assigning `null` (YAML) or `None` (Python)
+
 
 Validation Rules:
-    - All task names in datasets must match defined tasks
-    - param_set keys must not also appear as static params in the same block
-    - task inheritance trees must be acyclic and refer only to defined tasks
-
-
+    - All task references in datasets must match defined tasks
+    - param_set keys must not conflict with static fields at the same level
+    - task inheritance must be acyclic and refer to existing tasks only
 """
 
 import yaml

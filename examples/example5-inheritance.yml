@@ -9,6 +9,8 @@ tasks:
     extends: base_task
     learning_rate: 0.001
     metrics: [accuracy, f1]
+    param_set:
+      augmentation: [true, false]
 
   finetune_v1:
     extends: ml_defaults
@@ -34,3 +36,6 @@ datasets:
         output_vars: [label2]
         override:
           batch_size: 32
+        param_set:
+          augmentation: null
+        

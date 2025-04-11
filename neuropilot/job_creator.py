@@ -38,7 +38,7 @@ High-Level Algorithm:
 
 """
 
-from typing import List, Dict
+from typing import List, Dict, Optional
 import itertools
 from .config_loader import ConfigLoader
 
@@ -135,10 +135,7 @@ class JobCreator:
         Returns:
             List[dict]: list of param dictionaries
         """
-        merged = {}
-        for level in (global_ps, dataset_ps, entry_ps):
-            if level:
-                merged.update(level)
+        merged = self._merge_param_sets(global_ps, dataset_ps, entry_ps)
 
         if not merged:
             return [{}]  # single variant: no param sweep
@@ -146,6 +143,24 @@ class JobCreator:
         keys, values = zip(*merged.items())
         combos = [dict(zip(keys, combo)) for combo in itertools.product(*values)]
         return combos
+    
+    @staticmethod
+    def _merge_param_sets(*param_sets: Optional[dict]) -> dict:
+        """
+        Merge multiple param_set dictionaries, allowing None values to delete keys.
+        Later param_sets override earlier ones.
+        """
+        merged = {}
+        for ps in param_sets:
+            if isinstance(ps, dict):
+                for k, v in ps.items():
+                    if v is None:
+                        logger.debug(f"Param set key '{k}' deleted via null override.")
+                        merged.pop(k, None)  # Explicit deletion
+                    else:
+                        merged[k] = v
+        return merged
+
 
     def _resolve_params(self, base: dict, dataset_override: dict, entry_override: dict,
                         dataset_static: dict, entry_static: dict, param_combo: dict) -> dict:

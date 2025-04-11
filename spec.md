@@ -38,11 +38,12 @@ tasks:
 
 #### ✅ Rules:
 - Keys must be unique task names
-- If a param appears both as a static field and inside `param_set`, raise an error
+- If a param appears both as a static field and inside `param_set`, raise a validation error
 - `param_set` defines parameters to sweep over (cartesian product)
-- Optional fields: `description`, `requires_output_var`
+- If a task uses `extends`, its `param_set` is **merged** with the parent's
+  - Keys in the child override the parent’s
+  - Setting a value to `null` (YAML) or `None` (Python) deletes it from the sweep
 
----
 
 ### 📚 `datasets:` (Dataset Configurations)
 
@@ -71,22 +72,31 @@ datasets:
 ```
 
 #### ✅ Rules:
-- Each task entry **must** include a `name` matching a global task
-- `override` allows static parameter overrides per run
-- `param_set` **replaces** global `param_set` if defined locally
+- `param_set`s from task, dataset, and task-entry levels are **merged** in order
+- Later layers override earlier ones (task → dataset → task-entry)
+- Setting a `param_set` key to `null` removes it entirely
 
----
+
 
 ## 🧠 Resolution and Precedence Logic
 
-| Level               | Behavior                                                              |
-|---------------------|-----------------------------------------------------------------------|
-| `override`          | Takes absolute precedence over everything                             |
-| Local `param_set`   | Replaces global `param_set` entirely                                  |
-| Global `param_set`  | Applied only if local `param_set` is not present                      |
-| Global Static params| Used unless overridden or replaced by param_set                       |
+| Level                | Behavior                                                                 |
+|----------------------|--------------------------------------------------------------------------|
+| `override`           | Takes absolute precedence over everything                                |
+| Entry `param_set`    | Merges over dataset and task-level param_set (with override and delete)  |
+| Dataset `param_set`  | Merges over task param_set                                               |
+| Task `param_set`     | Base layer (may come from inherited task)                                |
+| Static parameters    | Used unless overridden; `param_set` keys must not duplicate static ones  |
 
----
+
+### 🧹 Deleting Inherited Sweep Keys
+
+If you want to **remove** a sweep parameter inherited from a base task, set its value to `null`:
+
+```yaml
+param_set:
+  dropout: null  # ✅ removes inherited 'dropout' sweep
+```
 
 ## ❗ Validation Requirements
 
@@ -94,7 +104,6 @@ datasets:
 2. **No duplication of parameter keys between static fields and `param_set` in the same scope**
 3. **Each param sweep is treated as a cartesian product unless explicitly changed (future support)**
 
----
 
 ## 🧪 Example of Full Config
 
@@ -112,6 +121,7 @@ tasks:
     learning_rate: 1e-4
     param_set:
       finetune_depth: [1, 3, 5, 10]
+      augmentation: [true, false]
 
 datasets:
   dataset_alpha:
@@ -122,6 +132,8 @@ datasets:
 
       - name: depth_sweep
         output_vars: [label3]
+        param_set:
+          finetune_depth: null
 
   dataset_beta:
     root: /mnt/data/beta
@@ -133,5 +145,3 @@ datasets:
         param_set:
           finetune_depth: [2, 4]
 ```
-
----

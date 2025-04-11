@@ -1,6 +1,6 @@
-# AutoTrainer
+# NeuroPilot
 
-**AutoTrainer** is a lightweight, extensible framework for defining, running, and analyzing deep learning tasks across multiple datasets using simple YAML configuration files. It provides a consistent protocol for specifying tasks, datasets, parameter sweeps, and overrides — and produces fully-specified job definitions ready for execution.
+**NeuroPilot** is a lightweight, extensible framework for defining, running, and analyzing deep learning tasks across multiple datasets using simple YAML configuration files. It provides a consistent protocol for specifying tasks, datasets, parameter sweeps, and overrides — and produces fully-specified job definitions ready for execution.
 
 ## 📦 Project Structure
 
@@ -37,10 +37,15 @@ pip install -r requirements.txt  # currently none strictly required
 
 ```yaml
 tasks:
-  finetune:
+  base_finetune:
     script: train.py
-    epochs: 50
+    epochs: 40
+
+  finetune:
+    extends: base_finetune
     learning_rate: 1e-4
+    param_set:
+      dropout: [0.1, 0.2]
 
 datasets:
   my_dataset:
@@ -48,6 +53,8 @@ datasets:
     tasks:
       - name: finetune
         output_vars: [label1, label2]
+        param_set:
+          dropout: null  # Remove inherited sweep
 ```
 
 3. **Use the API**:
@@ -84,33 +91,32 @@ runner.run()
 
 - Simple, declarative YAML task definitions  
 - Dataset-specific overrides and parameter sweeps  
+- Reusable task definitions with support for inheritance and merging  
 - Automatic expansion into per-job configurations  
 - Platform-agnostic — you plug in the execution backend (Slurm, subprocess, etc.)  
 - Built-in validation with informative error messages
-- Decoupled, logical class interfaces
-
+- Clean, composable class interfaces (ConfigLoader, JobCreator, JobRunner, ResultEmitter, etc.)
+- As unopinionated as possible (most things can be overridden, though we encourage certain schema)
 
 ## Examples
 
-Explore the `examples/` directory for working YAML templates:
+Explore the `examples/` directory for working YAML configuration templates:
 
 - `example1-basic.yml`: One task on one dataset
 - `example2-sweep.yml`: Parameterized task with a `param_set`
 - `example3-override.yml`: Per-dataset overrides of task parameters
 - `example4-multi-dataset.yml`: Multiple datasets sharing and customizing tasks
-- `example5-inheritance.yml`: Multi-level inheritance and overrides
+- `example5-inheritance.yml`: Multi-level inheritance, overrides, and param_set merging and deletion
 
 Additionally, run any of the above using `examples/proc_example.py <path>` to see the produced job objects.
-
 
 ## 📄 Spec
 
 For a complete outline of the definitions YAML protocol format, see [`spec.md`](spec.md).
 
-
 ## 📊 Result Creation & Collection
 
-AutoTrainer also includes a flexible and optional result management system via the `ResultEmitter` class. This allows you to:
+NeuroPilot includes a flexible and modular result management system through classes like `ResultEmitter`, `ResultLoader`, and `RemoteResultFetcher`.
 
 ✅ Automatically emit per-job result files in `.json` or `.yaml`  
 ✅ Structure your output using configurable file path patterns  
