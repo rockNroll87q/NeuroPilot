@@ -45,41 +45,33 @@ class JobInspector:
     def check_warnings(self):
         """
         Detect potential issues or inefficiencies in the configuration.
-        Suppresses unused warnings for tasks extended by used ones.
+        Suppresses warnings about tasks that are only used via inheritance.
         """
         self.printer("\n  Warnings")
         self.printer("=" * 30)
 
-        tasks = self.config["tasks"]
-        all_task_defs = set(tasks)
-        all_used_tasks = set()
+        inheritance_map = self.config.get("_task_inheritance", {})
+        all_tasks = set(self.config["tasks"])
+        used_tasks = {entry["name"] for ds in self.config["datasets"].values() for entry in ds["tasks"]}
 
-        # 1. Get directly used task names from datasets
-        for dataset in self.config["datasets"].values():
-            for entry in dataset["tasks"]:
-                all_used_tasks.add(entry["name"])
+        # Collect all transitive parents of used tasks
+        def get_all_parents(task, inherit_map):
+            seen = set()
+            while task in inherit_map and inherit_map[task] and inherit_map[task] not in seen:
+                parent = inherit_map[task]
+                seen.add(parent)
+                task = parent
+            return seen
 
-        # 2. Build reverse inheritance tree
-        reverse_inherits = {k: set() for k in tasks}
-        for child, details in tasks.items():
-            parent = details.get("extends")
-            if parent:
-                reverse_inherits[parent].add(child)
+        transitive_parents = set()
+        for task in used_tasks:
+            transitive_parents.update(get_all_parents(task, inheritance_map))
 
-        # 3. Recursively gather all indirectly used via inheritance
-        def gather_descendants(task):
-            children = reverse_inherits.get(task, set())
-            return children | {c for child in children for c in gather_descendants(child)}
-
-        indirectly_used = set()
-        for used in all_used_tasks:
-            indirectly_used |= gather_descendants(used)
-
-        final_used = all_used_tasks | indirectly_used
-        unused_tasks = all_task_defs - final_used
+        considered_used = used_tasks | transitive_parents
+        unused_tasks = all_tasks - considered_used
 
         if unused_tasks:
-            self.printer(f"  - Unused task(s) defined but never referenced: {sorted(unused_tasks)}")
+            self.printer(f"  - Unused task(s) defined but never referenced or extended: {sorted(unused_tasks)}")
         else:
             self.printer("  No warnings found.")
 
@@ -104,6 +96,39 @@ class JobInspector:
         for job in self.jobs:
             param_keys.update(job.get("params", {}).keys())
         return sorted(param_keys)
+    
+    def print_task_inheritance(self):
+        """
+        Display the task inheritance structure in a readable format.
+        """
+        self.printer("\n  Task Inheritance Structure")
+        self.printer("=" * 30)
+
+        inheritance = self.config.get("_task_inheritance", {})
+        if not inheritance:
+            self.printer("  (No inheritance relationships detected.)")
+            return
+
+        # Build inverted map: parent -> list of children
+        from collections import defaultdict
+        tree = defaultdict(list)
+        for child, parent in inheritance.items():
+            tree[parent].append(child)
+
+        def print_branch(parent, level=0):
+            children = sorted(tree.get(parent, []))
+            for child in children:
+                self.printer("  " + "  " * level + f"- {child}")
+                print_branch(child, level + 1)
+
+        roots = sorted(tree.get(None, []))
+        if not roots:
+            self.printer("  (No root tasks found — possible cycle?)")
+        else:
+            for root in roots:
+                self.printer(f"- {root}")
+                print_branch(root, 1)
+
 
     def get_metrics_example(self) -> Optional[Dict[str, float]]:
         """

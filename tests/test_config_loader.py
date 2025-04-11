@@ -122,7 +122,7 @@ class TestExperimentInheritance(unittest.TestCase):
             "base": {"epochs": 10, "learning_rate": 0.1},
             "child": {"extends": "base", "learning_rate": 0.01}
         }
-        resolved, _ = _resolve_task_inheritance(tasks)
+        resolved, _, _ = _resolve_task_inheritance(tasks)
         self.assertEqual(resolved["child"]["epochs"], 10)
         self.assertEqual(resolved["child"]["learning_rate"], 0.01)
 
@@ -132,7 +132,7 @@ class TestExperimentInheritance(unittest.TestCase):
             "mid": {"extends": "base", "optimizer": "adam"},
             "final": {"extends": "mid", "lr": 0.001}
         }
-        resolved, _ = _resolve_task_inheritance(tasks)
+        resolved, _, _ = _resolve_task_inheritance(tasks)
         self.assertEqual(resolved["final"]["epochs"], 10)
         self.assertEqual(resolved["final"]["optimizer"], "adam")
         self.assertEqual(resolved["final"]["lr"], 0.001)
@@ -141,7 +141,7 @@ class TestExperimentInheritance(unittest.TestCase):
         tasks = {
             "plain": {"epochs": 20, "lr": 0.2}
         }
-        resolved, _ = _resolve_task_inheritance(tasks)
+        resolved, _, _ = _resolve_task_inheritance(tasks)
         self.assertEqual(resolved["plain"]["epochs"], 20)
         self.assertEqual(resolved["plain"]["lr"], 0.2)
 
@@ -169,7 +169,7 @@ class TestExperimentInheritance(unittest.TestCase):
             "child": {"extends": "base", "y": 20, "z": 30},
             "grandchild": {"extends": "child", "z": 300}
         }
-        resolved, _ = _resolve_task_inheritance(tasks)
+        resolved, _, _ = _resolve_task_inheritance(tasks)
         self.assertEqual(resolved["grandchild"]["x"], 1)
         self.assertEqual(resolved["grandchild"]["y"], 20)
         self.assertEqual(resolved["grandchild"]["z"], 300)

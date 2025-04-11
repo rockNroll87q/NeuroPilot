@@ -46,3 +46,43 @@ class TestJobInspector(unittest.TestCase):
         keys = self.inspector.estimate_param_columns()
         self.assertIn("learning_rate", keys)
         self.assertIn("epochs", keys)
+
+class TestInspectorInheritanceWarnings(unittest.TestCase):
+
+    def setUp(self):
+        self.config = {
+            "tasks": {
+                "base": {
+                    "script": "base_train.py",
+                    "epochs": 20
+                },
+                "child": {
+                    "extends": "base",
+                    "learning_rate": 0.01
+                },
+                "unused_task": {
+                    "script": "extra.py"
+                }
+            },
+            "datasets": {
+                "dataset1": {
+                    "root": "/data/dataset1",
+                    "tasks": [
+                        {"name": "child"}
+                    ]
+                }
+            }
+        }
+
+    def test_unused_tasks_excludes_inherited(self):
+        loader = ConfigLoader(self.config)
+        validated = loader.load()
+
+        output = io.StringIO()
+        inspector = JobInspector(validated)
+        inspector.printer = lambda msg: print(msg, file=output)
+        inspector.check_warnings()
+
+        warnings_output = output.getvalue()
+        self.assertIn("unused_task", warnings_output)
+        self.assertNotIn("base", warnings_output)

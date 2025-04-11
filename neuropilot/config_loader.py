@@ -104,6 +104,7 @@ class InheritanceError(Exception):
 def _resolve_task_inheritance(tasks: Dict[str, Dict[str, Any]]) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Set[str]]]:
     resolved = {}
     inherited_keys = {}
+    inheritance_map = {}
 
     def resolve(key: str, trail: Set[str]) -> Dict[str, Any]:
         if key in resolved:
@@ -117,6 +118,8 @@ def _resolve_task_inheritance(tasks: Dict[str, Dict[str, Any]]) -> Tuple[Dict[st
 
         exp = tasks[key]
         base_key = exp.get("extends")
+
+        inheritance_map[key] = base_key
 
         if not base_key:
             resolved[key] = dict(exp)
@@ -156,7 +159,7 @@ def _resolve_task_inheritance(tasks: Dict[str, Dict[str, Any]]) -> Tuple[Dict[st
     for key in tasks:
         resolve(key, set())
 
-    return resolved, inherited_keys
+    return resolved, inherited_keys, inheritance_map
 
 
 class ConfigValidationError(Exception):
@@ -237,9 +240,10 @@ class ConfigLoader:
         if not isinstance(datasets, dict):
             raise ConfigValidationError("Missing or invalid 'datasets' section. Must be a dictionary.")
 
-        tasks, inherited_keys = _resolve_task_inheritance(tasks)
+        tasks, inherited_keys, inheritance_map = _resolve_task_inheritance(tasks)
         config["tasks"] = tasks
         self._inherited_keys = inherited_keys
+        config["_task_inheritance"] = inheritance_map
 
         self._validate_tasks(tasks)
 
