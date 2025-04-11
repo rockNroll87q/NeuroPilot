@@ -1,12 +1,8 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import os
-from typing import Optional, Dict
-
-
-from dataclasses import dataclass
-import os
-from typing import Optional, Dict
-
+from typing import Optional, Dict, Any, Union
+from pathlib import Path
+import json
 
 @dataclass
 class JobContext:
@@ -36,9 +32,13 @@ class JobContext:
         print(ctx.summary())
     """
     job_id: str
-    dataset_name: Optional[str] = None
     task_name: Optional[str] = None
+    dataset_name: Optional[str] = None
     group: Optional[str] = None
+    params: Optional[Dict[str, Any]] = None
+    data_root: Optional[str] = None
+    task_description: Optional[str] = None
+    dataset_description: Optional[str] = None
 
     @classmethod
     def from_env(cls) -> "JobContext":
@@ -50,12 +50,16 @@ class JobContext:
         )
 
     @classmethod
-    def from_job(cls, job: Dict) -> "JobContext":
+    def from_job(cls, job: Dict[str, Any]) -> "JobContext":
         return cls(
             job_id=job["job_id"],
             dataset_name=job.get("dataset_name"),
             task_name=job.get("task_name") or job.get("experiment_name"),
-            group=job.get("group")
+            group=job.get("group"),
+            params=job.get("params"),
+            data_root=job.get("data_root"),
+            task_description=job.get("task_description"),
+            dataset_description=job.get("dataset_description"),
         )
 
     def to_env(self) -> Dict[str, str]:
@@ -79,6 +83,16 @@ class JobContext:
 
     def log_prefix(self) -> str:
         return f"{self.task_name or 'job'}:{self.dataset_name or 'data'}:{self.job_id}"
+    
+    def to_file(self, path: Union[str, Path]):
+        with open(path, "w") as f:
+            json.dump(asdict(self), f, indent=2)
+
+    @classmethod
+    def from_file(cls, path: Union[str, Path]) -> "JobContext":
+        with open(path, "r") as f:
+            data = json.load(f)
+        return cls(**data)
 
     def is_set(self) -> bool:
         """
@@ -86,5 +100,7 @@ class JobContext:
         """
         if self.job_id == "unknown":
             return False
-        return any([self.dataset_name, self.task_name, self.group])
+        return any([self.dataset_name, self.task_name, \
+                    self.group, self.params, self.data_root, \
+                        self.dataset_description, self.task_description])
     
