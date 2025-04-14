@@ -11,7 +11,7 @@ class JobContext:
 
     This object allows jobs to access information like job ID, dataset name, task name,
     and other relevant identifiers in a standardized way. It can be created from environment
-    variables (e.g., injected by JobRunner) or from the job dictionary directly.
+    variables (e.g., injected by JobRunner), from a .json file, or from the job dictionary directly.
 
     This context object is optional, but useful for:
     - Setting WandB run names
@@ -19,17 +19,23 @@ class JobContext:
     - Creating reproducible output directory structures
     - Avoiding manual CLI or env var parsing in training code
 
-    Fields:
+    Fields (carried from job schema given in JobCreator):
         job_id (str): Unique job identifier (required)
         dataset_name (str): Name of dataset for this job
         task_name (str): Name of the task/experiment for this job
         group (str): Optional grouping identifier (e.g., experiment group or sweep ID)
+        params (dict): Dictionary of param key/value pairs
+        data_root (str): Path to dataset root directory
+        task_description (str): String description of task
+        dataset_description (str): String description of dataset
 
     Usage:
         ctx = JobContext.from_env()
         if ctx.is_set():
             wandb.init(name=ctx.job_id)
         print(ctx.summary())
+
+        ctx.to_file("/path/to/job/file.json")
     """
     job_id: str
     task_name: Optional[str] = None
@@ -87,6 +93,25 @@ class JobContext:
     def to_file(self, path: Union[str, Path]):
         with open(path, "w") as f:
             json.dump(asdict(self), f, indent=2)
+
+    def to_flat_dict(self) -> Dict[str, Any]:
+        """
+        Returns a flat dictionary of key context values for use in logging or experiment tracking.
+
+        This includes all core fields, including params, merged into one flat dictionary.
+        """
+        flat = {
+            "job_id": self.job_id,
+            "task_name": self.task_name,
+            "dataset_name": self.dataset_name,
+            "group": self.group,
+            "data_root": self.data_root,
+            "task_description": self.task_description,
+            "dataset_description": self.dataset_description
+        }
+        if self.params:
+            flat.update(self.params)
+        return {k: v for k, v in flat.items() if v is not None}
 
     @classmethod
     def from_file(cls, path: Union[str, Path]) -> "JobContext":
