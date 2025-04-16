@@ -1,6 +1,6 @@
 # NeuroPilot
 
-**NeuroPilot** is a lightweight, extensible framework for defining, running, and analyzing deep learning tasks across multiple datasets using simple YAML configuration files. It provides a consistent protocol for specifying tasks, datasets, parameter sweeps, and overrides — and produces fully-specified job definitions ready for execution.
+**NeuroPilot** is a lightweight, extensible framework for automating deep learning/machine learning/data science experiments. If you have multiple datasets and multiple experimental methods for each--this framework might be for you! Just create a YAML/JSON file defining the datasets and methods you're working with, write a few lines of Python code, and you're off!
 
 ## Why?
 
@@ -8,7 +8,7 @@ Basically, the existing toolchains for automating deep learning experiments didn
 
 ### What this framework is
 
-NeuroPilot is intended to be plugged into your existing DL/ML/data science/whatever code without too much fuss. It can either be very simple, or quite complex if you used the advanced features. If you're at the start of a new project, that's even better! Integration will be a bit easier.
+NeurPilot is an automation tool. It is intended to be plugged into your existing DL/ML/data science/whatever code without too much fuss, and reduce your workload by automating all your experimental pipeline. It can either be very simple, or quite complex if you used the advanced features. If you're at the start of a new project, that's even better! Integration will be a bit easier.
 
 The general idea behind the framework is: everything is a suggestion. I provide a lot of useful tools, but they're all fairly decoupled from each other so you're free to take (or leave) whichever parts you want.
 
@@ -91,7 +91,7 @@ for job in jobs:
     JobContext.from_job(job).to_file("<path to job file>")
 ```
 
-1. **Use JobRunner to run your jobs**
+4. **Use JobRunner to run your jobs**
 
 You can extend the `JobRunner` interface as a clean way to run the defined jobs:
 
