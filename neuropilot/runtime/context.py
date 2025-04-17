@@ -67,6 +67,24 @@ class JobContext:
             task_description=job.get("task_description"),
             dataset_description=job.get("dataset_description"),
         )
+    
+    def to_job(self) -> Dict[str, Any]:
+        """
+        Returns a dictionary job of key context values for use in logging or experiment tracking.
+
+        This includes all core fields, including params.
+        """
+        job = {
+            "job_id": self.job_id,
+            "task_name": self.task_name,
+            "dataset_name": self.dataset_name,
+            "group": self.group,
+            "params": self.params,
+            "data_root": self.data_root,
+            "task_description": self.task_description,
+            "dataset_description": self.dataset_description
+        }
+        return job
 
     def to_env(self) -> Dict[str, str]:
         """
@@ -112,6 +130,7 @@ class JobContext:
         if self.params:
             flat.update(self.params)
         return {k: v for k, v in flat.items() if v is not None}
+    
 
     @classmethod
     def from_file(cls, path: Union[str, Path]) -> "JobContext":
