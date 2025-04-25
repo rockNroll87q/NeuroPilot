@@ -195,7 +195,7 @@ class ConfigLoader:
             ConfigValidationError: If validation fails.
         """
         self._raw_config = self._load_source()
-        self._validated_config = self._validate(self._raw_config)
+        self._validated_config = self._validate(self._raw_config.copy())
         return self._validated_config
     
     def save_raw(self, path: Union[str, Path]):
