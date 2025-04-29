@@ -3,6 +3,7 @@ import os
 from typing import Optional, Dict, Any, Union
 from pathlib import Path
 import json
+import yaml
 
 @dataclass
 class JobContext:
@@ -109,8 +110,50 @@ class JobContext:
         return f"{self.task_name or 'job'}:{self.dataset_name or 'data'}:{self.job_id}"
     
     def to_file(self, path: Union[str, Path]):
-        with open(path, "w") as f:
-            json.dump(asdict(self), f, indent=2)
+        """
+        Save the JobContext to a JSON or YAML file based on the file extension.
+
+        Args:
+            path (str or Path): Output file path. Must end in .json, .yaml, or .yml
+        """
+        path = Path(path)
+        data = asdict(self)
+
+        if path.suffix == ".json":
+            with open(path, "w") as f:
+                json.dump(data, f, indent=2)
+        elif path.suffix in {".yaml", ".yml"}:
+            with open(path, "w") as f:
+                yaml.safe_dump(data, f, sort_keys=False)
+        else:
+            raise ValueError(f"Unsupported file extension: {path.suffix}. Use .json, .yaml, or .yml")
+
+    @classmethod
+    def from_file(cls, path: Union[str, Path]) -> "JobContext":
+        """
+        Load a JobContext from a JSON or YAML file based on the file extension.
+
+        Args:
+            path (str or Path): Path to input file (.json, .yaml, or .yml)
+
+        Returns:
+            JobContext instance
+        """
+        path = Path(path)
+
+        if not path.exists():
+            raise FileNotFoundError(f"No such file: {path}")
+
+        if path.suffix == ".json":
+            with open(path, "r") as f:
+                data = json.load(f)
+        elif path.suffix in {".yaml", ".yml"}:
+            with open(path, "r") as f:
+                data = yaml.safe_load(f)
+        else:
+            raise ValueError(f"Unsupported file extension: {path.suffix}. Use .json, .yaml, or .yml")
+
+        return cls(**data)
 
     def to_flat_dict(self) -> Dict[str, Any]:
         """
@@ -130,13 +173,6 @@ class JobContext:
         if self.params:
             flat.update(self.params)
         return {k: v for k, v in flat.items() if v is not None}
-    
-
-    @classmethod
-    def from_file(cls, path: Union[str, Path]) -> "JobContext":
-        with open(path, "r") as f:
-            data = json.load(f)
-        return cls(**data)
 
     def is_set(self) -> bool:
         """
