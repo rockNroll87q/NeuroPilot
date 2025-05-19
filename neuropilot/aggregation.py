@@ -33,7 +33,8 @@ def aggregate_results(
     strict: bool = True,
     flatten_nested: bool = False,
     long_format: bool = False,
-    long_output_field: str = "output_var"
+    long_output_field: str = "output_var",
+    other_fields: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """
     Aggregates a list of result dictionaries into a structured pandas DataFrame.
@@ -114,6 +115,7 @@ def aggregate_results(
         raise ValueError("No results provided for aggregation.")
 
     index_fields = index_fields or []
+    other_fields = other_fields or []
 
     metric_fields = metric_fields or (
         _auto_detect_fields(results, key="results", nested=long_format or flatten_nested)
@@ -131,6 +133,9 @@ def aggregate_results(
         base_row = _extract_fields(result, index_fields, section="index", index=i, strict=strict)
         param_row = _extract_nested_fields(result.get("params", {}), param_fields, section="params", index=i, strict=strict)
         base_row.update(param_row)
+
+        # Pull any additional required fields from the result (not nested)
+        base_row.update(_extract_fields(result, other_fields, section="other", index=i, strict=strict))
 
         metrics = result.get("results", {})
         if not isinstance(metrics, dict):
