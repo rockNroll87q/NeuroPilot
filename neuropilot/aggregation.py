@@ -29,9 +29,10 @@ class ResultSet:
         index_fields: List[str],
         metric_fields: List[str],
         param_fields: List[str],
-        output_field: Optional[str],
         results_raw: List[Dict],
-        flattened: bool,
+        other_fields: Optional[List[str]] = None,
+        output_field: Optional[str] = None,
+        flattened: Optional[bool] = False,
     ):
         self.df = dataframe
         self.index_fields = index_fields
@@ -40,6 +41,7 @@ class ResultSet:
         self.output_field = output_field
         self.results_raw = results_raw
         self.flattened = flattened
+        self.other_fields = other_fields or []
 
     def filter_by(self, **kwargs) -> "ResultSet":
         mask = pd.Series(True, index=self.df.index)
@@ -62,6 +64,7 @@ class ResultSet:
             self.index_fields +
             metric_fields +
             param_fields +
+            self.other_fields + 
             ([self.output_field] if self.output_field else [])
         )
         relevant_cols = [c for c in relevant_cols if c in filtered_df.columns]
@@ -71,8 +74,9 @@ class ResultSet:
             index_fields=self.index_fields,
             metric_fields=metric_fields,
             param_fields=param_fields,
-            output_field=self.output_field,
             results_raw=filtered_jobs,
+            other_fields=self.other_fields,
+            output_field=self.output_field,
             flattened=self.flattened
         )
     
@@ -160,8 +164,9 @@ def aggregate_results(
         index_fields=index_fields,
         metric_fields=metric_fields,
         param_fields=param_fields,
-        output_field=long_output_field if long_format else None,
         results_raw=results,
+        other_fields=other_fields,
+        output_field=long_output_field if long_format else None,
         flattened=flatten_nested
     )
 
