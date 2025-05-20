@@ -30,7 +30,8 @@ class ResultSet:
         metric_fields: List[str],
         param_fields: List[str],
         output_field: Optional[str],
-        results_raw: List[Dict]
+        results_raw: List[Dict],
+        flattened: bool,
     ):
         self.df = dataframe
         self.index_fields = index_fields
@@ -38,6 +39,7 @@ class ResultSet:
         self.param_fields = param_fields
         self.output_field = output_field
         self.results_raw = results_raw
+        self.flattened = flattened
 
     def filter_by(self, **kwargs) -> "ResultSet":
         mask = pd.Series(True, index=self.df.index)
@@ -51,7 +53,9 @@ class ResultSet:
             if all(r.get(k) == v for k, v in kwargs.items())
         ]
 
-        metric_fields = _auto_detect_fields(filtered_jobs, key="results", nested=bool(self.output_field))
+        metric_fields = _auto_detect_fields(filtered_jobs, key="results", 
+                                            nested=self.output_field is not None or self.flattened, 
+                                            flatten=self.flattened)
         param_fields = _auto_detect_fields(filtered_jobs, key="params")
 
         relevant_cols = (
@@ -68,7 +72,8 @@ class ResultSet:
             metric_fields=metric_fields,
             param_fields=param_fields,
             output_field=self.output_field,
-            results_raw=filtered_jobs
+            results_raw=filtered_jobs,
+            flattened=self.flattened
         )
     
     def get_values_for(self, var_name: str) -> set:
@@ -114,7 +119,7 @@ def aggregate_results(
     other_fields = other_fields or []
 
     metric_fields = metric_fields or (
-        _auto_detect_fields(results, key="results", nested=long_format or flatten_nested)
+        _auto_detect_fields(results, key="results", nested=long_format or flatten_nested, flatten=flatten_nested)
         if auto_detect_metrics else []
     )
     param_fields = param_fields or (
@@ -156,24 +161,30 @@ def aggregate_results(
         metric_fields=metric_fields,
         param_fields=param_fields,
         output_field=long_output_field if long_format else None,
-        results_raw=results
+        results_raw=results,
+        flattened=flatten_nested
     )
 
 
 # ---- Helpers (unchanged except _auto_detect_fields) ----
 
-def _auto_detect_fields(results: List[Dict], key: str, nested: bool = False) -> List[str]:
+def _auto_detect_fields(results: List[Dict], key: str, nested: bool = False, flatten: bool = False) -> List[str]:
     fields = set()
     for r in results:
         section = r.get(key)
         if isinstance(section, dict):
             if nested and _is_nested_dict(section):
-                for sub in section.values():
+                for outer_key, sub in section.items():
                     if isinstance(sub, dict):
-                        fields.update(sub.keys())
+                        if flatten:
+                            for inner_key in sub:
+                                fields.add(f"{outer_key}.{inner_key}")
+                        else:
+                            fields.update(sub.keys())
             else:
                 fields.update(section.keys())
     return sorted(fields)
+
 
 def _extract_fields(source: Dict, keys: List[str], section: str, index: int, strict: bool) -> Dict[str, Optional[Any]]:
     output = {}

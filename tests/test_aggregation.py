@@ -359,6 +359,206 @@ class TestResultSetFiltering(unittest.TestCase):
         self.assertIn("acc", df.columns)
         self.assertIn("f1", df.columns)
 
+class TestResultSetFilteringNested(unittest.TestCase):
+
+    def setUp(self):
+        self.nested_results = [
+            {
+                "job_id": "job1",
+                "task_name": "finetune",
+                "dataset_name": "mnist",
+                "results": {
+                    "label1": {"acc": 0.91, "f1": 0.87},
+                    "label2": {"acc": 0.88, "f1": 0.85}
+                },
+                "params": {"lr": 0.001, "dropout": 0.2}
+            },
+            {
+                "job_id": "job2",
+                "task_name": "finetune",
+                "dataset_name": "imagenet",
+                "results": {
+                    "label1": {"acc": 0.80}
+                },
+                "params": {"lr": 0.002}
+            },
+            {
+                "job_id": "job3",
+                "task_name": "pretrain",
+                "dataset_name": "imagenet",
+                "results": {
+                    "label2": {"f1": 0.82}
+                },
+                "params": {"dropout": 0.3}
+            }
+        ]
+
+    def test_filter_nested_long_format_by_dataset(self):
+        rs = aggregate_results(
+            self.nested_results,
+            index_fields=["job_id", "dataset_name"],
+            long_format=True,
+            long_output_field="label",
+            auto_detect_metrics=True,
+            auto_detect_params=True,
+            strict=False
+        )
+
+        filtered = rs.filter_by(dataset_name="imagenet")
+        df = filtered.to_dataframe()
+
+        # Should include job2 and job3
+        self.assertEqual(set(df["job_id"]), {"job2", "job3"})
+
+        # job2 has only acc, job3 has only f1
+        # both fields should appear
+        self.assertIn("acc", df.columns)
+        self.assertIn("f1", df.columns)
+
+        # But dropout should be included only if present
+        self.assertIn("dropout", df.columns)
+        self.assertIn("lr", df.columns)
+
+        # Check that values are correct
+        acc_values = df["acc"].dropna().tolist()
+        f1_values = df["f1"].dropna().tolist()
+        self.assertIn(0.80, acc_values)
+        self.assertIn(0.82, f1_values)
+
+    def test_filter_nested_long_format_by_task(self):
+        rs = aggregate_results(
+            self.nested_results,
+            index_fields=["job_id", "task_name"],
+            long_format=True,
+            long_output_field="label",
+            auto_detect_metrics=True,
+            auto_detect_params=True,
+            strict=False
+        )
+
+        filtered = rs.filter_by(task_name="finetune")
+        df = filtered.to_dataframe()
+
+        # Should include job1 and job2
+        self.assertEqual(set(df["job_id"]), {"job1", "job2"})
+
+        # job1 has acc + f1, job2 has only acc
+        self.assertIn("acc", df.columns)
+        self.assertIn("f1", df.columns)
+
+        # Only lr is present in both jobs
+        self.assertIn("lr", df.columns)
+        self.assertIn("dropout", df.columns)
+
+        acc_values = df["acc"].dropna().tolist()
+        self.assertTrue(any(v == 0.91 for v in acc_values))
+        self.assertTrue(any(v == 0.80 for v in acc_values))
+
+class TestResultSetFilteringFlattened(unittest.TestCase):
+
+    def setUp(self):
+        self.flattened_results = [
+            {
+                "job_id": "job1",
+                "dataset_name": "mnist",
+                "results": {
+                    "label1": {"acc": 0.91, "f1": 0.87},
+                    "label2": {"acc": 0.88, "f1": 0.85}
+                },
+                "params": {"lr": 0.001}
+            },
+            {
+                "job_id": "job2",
+                "dataset_name": "imagenet",
+                "results": {
+                    "label1": {"acc": 0.80}
+                },
+                "params": {"lr": 0.002}
+            },
+            {
+                "job_id": "job3",
+                "dataset_name": "imagenet",
+                "results": {
+                    "label2": {"f1": 0.82}
+                },
+                "params": {"dropout": 0.3}
+            }
+        ]
+
+    def test_filter_flattened_by_dataset_includes_correct_columns(self):
+        rs = aggregate_results(
+            self.flattened_results,
+            index_fields=["job_id", "dataset_name"],
+            flatten_nested=True,
+            auto_detect_metrics=True,
+            auto_detect_params=True,
+            strict=False
+        )
+
+        filtered = rs.filter_by(dataset_name="imagenet")
+        df = filtered.to_dataframe()
+
+        # Should contain jobs 2 and 3
+        self.assertEqual(set(df["job_id"]), {"job2", "job3"})
+
+        # Flattened keys based on filtered results
+        # job2: label1.acc
+        # job3: label2.f1
+        self.assertIn("label1.acc", df.columns)
+        self.assertIn("label2.f1", df.columns)
+
+        # Should not include label2.acc or label1.f1 since they aren't present in these jobs
+        self.assertNotIn("label2.acc", df.columns)
+        self.assertNotIn("label1.f1", df.columns)
+
+        # Params: job2 has lr, job3 has dropout
+        self.assertIn("lr", df.columns)
+        self.assertIn("dropout", df.columns)
+
+    def test_filter_flattened_by_single_job(self):
+        rs = aggregate_results(
+            self.flattened_results,
+            index_fields=["job_id", "dataset_name"],
+            flatten_nested=True,
+            auto_detect_metrics=True,
+            auto_detect_params=True,
+            strict=False
+        )
+
+        filtered = rs.filter_by(job_id="job1")
+        df = filtered.to_dataframe()
+
+        # Should have all label1.* and label2.* metrics
+        self.assertIn("label1.acc", df.columns)
+        self.assertIn("label1.f1", df.columns)
+        self.assertIn("label2.acc", df.columns)
+        self.assertIn("label2.f1", df.columns)
+
+        # Only job1 has lr
+        self.assertIn("lr", df.columns)
+        self.assertNotIn("dropout", df.columns)
+
+    def test_filter_flattened_no_overlap_metrics(self):
+        # job2 has only label1.acc, job3 has only label2.f1
+        rs = aggregate_results(
+            self.flattened_results,
+            index_fields=["job_id", "dataset_name"],
+            flatten_nested=True,
+            auto_detect_metrics=True,
+            auto_detect_params=True,
+            strict=False
+        )
+
+        filtered = rs.filter_by(job_id="job3")
+        df = filtered.to_dataframe()
+
+        self.assertIn("label2.f1", df.columns)
+        self.assertNotIn("label1.acc", df.columns)
+        self.assertNotIn("label1.f1", df.columns)
+        self.assertNotIn("label2.acc", df.columns)
+
+        self.assertIn("dropout", df.columns)
+        self.assertNotIn("lr", df.columns)
 
 
 if __name__ == "__main__":
