@@ -68,21 +68,25 @@ class ResultLoader:
         self._metadata_fields = self._extract_fields_from_pattern(pattern)
         self._compiled_regex = self._compile_pattern_to_regex(pattern)
 
-    def collect(self, strict: bool = False) -> List[Dict]:
+    def collect(self, strict: bool = False, return_filepaths: bool = False) -> List[Dict]:
         """
         Collect and parse all result files matching the pattern.
 
         Args:
             strict (bool): If True, warn about skipped files or metadata mismatches.
-
+            return_filepaths (bool): If True, then return a list of the paths where the result files were found
+            
         Returns:
             List[dict]: Parsed and annotated result objects.
+            If return_filepaths == True, then we also return a List[Path] of file paths.
         """
         results = []
 
         # Convert format-style pattern to glob-compatible pattern
         glob_pattern = self._pattern_to_glob(self.pattern)
         matched_files = list(self._glob_files(glob_pattern))
+
+        result_filepaths = []
 
         for file in matched_files:
             if not file.is_file():
@@ -115,8 +119,13 @@ class ResultLoader:
                     continue
 
             results.append(data)
+            if return_filepaths:
+                result_filepaths.append(file)
 
-        return results
+        if not return_filepaths:
+            return results
+        else:
+            return results, result_filepaths
 
     def _glob_files(self, pattern: str):
         if pattern.startswith("**/") or pattern == "**":

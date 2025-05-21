@@ -241,7 +241,8 @@ class ResultEmitter:
         self,
         root_dir: Optional[Union[str, Path]] = None,
         infer_metadata: bool = True,
-        strict: bool = False
+        strict: bool = False,
+        return_filepaths: bool = False
     ) -> List[Dict]:
         """
         Recursively collect all result files under the specified output directory.
@@ -257,9 +258,11 @@ class ResultEmitter:
 
         Returns:
             List[dict]: List of parsed result dictionaries, enriched with inferred metadata when possible.
+            If return_filepaths == True, then we also return a List[Path] of file paths.
         """
         root = Path(root_dir or self.root_dir)
         results = []
+        result_filepaths = []
 
         if root_dir is not None and infer_metadata and root != self.root_dir:
             logger.warning(
@@ -294,6 +297,8 @@ class ResultEmitter:
                     data.update(metadata)
 
                 results.append(data)
+                if return_filepaths:
+                    result_filepaths.append(file)
 
             except Exception as e:
                 raise ValueError(
@@ -302,7 +307,10 @@ class ResultEmitter:
                     f"Error: {e}"
                 )
 
-        return results
+        if not return_filepaths:
+            return results
+        else:
+            return results, result_filepaths
 
 
     def _resolve_output_path(self, job: dict) -> str:
