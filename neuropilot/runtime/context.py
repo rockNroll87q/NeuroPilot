@@ -184,16 +184,16 @@ class JobContext:
                     self.group, self.params, self.data_root, \
                         self.dataset_description, self.task_description])
     
-    def get_param(self, key:str, default_val:Any = None, create_key=False):
+    def get_param(self, key:str, default:Any = None, create_key=False):
         """
-        Returns the parameter value. If not present, returns default_val. If create_key == True, then
-        the internal value in the parameter set is set to default_val.
+        Returns the parameter value. If not present, returns default. If create_key == True, then
+        the internal value in the parameter set is set to default.
         """
         if key in self.params:
             return self.params[key]
         else:
             if create_key:
-                self.params[key] = default_val
+                self.params[key] = default
             
-            return default_val
+            return default
     
