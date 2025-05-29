@@ -184,3 +184,16 @@ class JobContext:
                     self.group, self.params, self.data_root, \
                         self.dataset_description, self.task_description])
     
+    def get_param(self, key:str, default_val:Any = None, override=False):
+        """
+        Returns the parameter value. If not present, returns default_val. If override == True, then
+        the internal value in the parameter set is set to default_val.
+        """
+        if key in self.params:
+            return self.params[key]
+        else:
+            if override:
+                self.params[key] = default_val
+            
+            return default_val
+    

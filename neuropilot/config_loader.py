@@ -206,7 +206,7 @@ class ConfigLoader:
             path (str or Path): Path to write to. Extension determines format.
         """
         if self._raw_config is None:
-            raise ValueError("Raw config is not loaded yet.")
+            raise ValueError("Raw config is not loaded yet. Run .load() before calling this function.")
 
         path = Path(path)
         with open(path, 'w') as f:
