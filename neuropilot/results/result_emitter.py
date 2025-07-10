@@ -29,6 +29,41 @@ from string import Formatter
 
 from loguru import logger
 
+import importlib
+
+# Check for optional libraries
+HAS_NUMPY = importlib.util.find_spec("numpy") is not None
+HAS_PANDAS = importlib.util.find_spec("pandas") is not None
+
+if HAS_NUMPY:
+    import numpy as np
+if HAS_PANDAS:
+    import pandas as pd
+
+def sanitize_for_yaml(obj):
+    if isinstance(obj, dict):
+        return {sanitize_for_yaml(k): sanitize_for_yaml(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_for_yaml(i) for i in obj]
+    
+    # Handle NumPy types if available
+    if HAS_NUMPY:
+        if isinstance(obj, np.generic):
+            return obj.item()
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+
+    # Handle Pandas types if available
+    if HAS_PANDAS:
+        if isinstance(obj, (pd.Timestamp, pd.Timedelta)):
+            return str(obj)
+
+    # Fallback for other non-serializable objects
+    if hasattr(obj, "__str__") and not isinstance(obj, (str, int, float, bool)):
+        return str(obj)
+
+    return obj
+
 
 def create_result(job: dict, results: dict, status: str = "success", extra: Optional[Dict] = None) -> dict:
     """
@@ -127,6 +162,7 @@ class ResultEmitter:
                 "Invalid output_pattern: '{job_id}' is required in the pattern "
                 "to ensure job outputs are uniquely identifiable."
             )
+
         
     def create_and_emit_result(
         self,
@@ -134,7 +170,8 @@ class ResultEmitter:
         results:dict,
         status:str = "success",
         extra: Optional[Dict] = None,
-        output_path: Optional[Union[str, Path]] = None
+        output_path: Optional[Union[str, Path]] = None,
+        strict: bool = True
     ) -> str:
         """
         Create and emit a result object for output according to our recommended schema.
@@ -145,50 +182,67 @@ class ResultEmitter:
             status (str): End job status, like "success" or "error"
             extra (dict): Optional metadata keys to add onto the result object.
             output_path (str|Path): Optional output path override to emit the result
+            strict (bool): Optional for emitting results. Strict mode yields an error if an object in the output
+                            dict can't be serialized. If False, then we try to sanitize before writing.
             
         Returns:
             result object (dict)
         """
         result = create_result(job, results, status, extra)
-        return self.emit_result(result, job, output_path)
-
+        return self.emit_result(result, job, output_path, strict)
+    
     def emit_result(
         self,
         result: dict,
         job: Optional[dict] = None,
         output_path: Optional[Union[str, Path]] = None,
+        strict: bool = True
     ) -> Path:
         """
-        Emit a result file for a job.
+        Emit a result file for a job, with optional sanitization fallback.
 
-        Args:           
-            result (dict): Dictionary of results. Can be created via `create_result` or according to a custom schema.
-            job (dict): The job spec.
-            output_path (str): Optional manual override of output path.
+        Args:
+            result (dict): The result dictionary.
+            job (dict): Optional job spec.
+            output_path (str or Path): Manual override for output path.
+            strict (bool): If True, raise on serialization failure. If False, sanitize and retry.
 
         Returns:
-            Path: Path to the written result file.
+            Path: Path to written result.
         """
-
-        if output_path is None and job is None:
-            raise ValueError("Either output_path or job object must be given to resolve the output location.")
-
         path = Path(output_path or self._resolve_output_path(job))
         path.parent.mkdir(exist_ok=True, parents=True)
 
-        with open(path, "w") as f:
-            if self.fmt == "json":
-                json.dump(result, f, indent=2)
-            else:
-                yaml.safe_dump(result, f)
+        try:
+            with open(path, "w") as f:
+                if self.fmt == "json":
+                    json.dump(result, f, indent=2)
+                else:
+                    yaml.safe_dump(result, f)
+        except Exception as e:
+            logger.error(f"Failed to serialize result strictly: {e}")
+
+            if strict:
+                raise e
+
+            logger.warning("Attempting to sanitize result and re-serialize.")
+            result_cleaned = sanitize_for_yaml(result)
+
+            with open(path, "w") as f:
+                if self.fmt == "json":
+                    json.dump(result_cleaned, f, indent=2)
+                else:
+                    yaml.safe_dump(result_cleaned, f)
 
         return path
+
 
     def collect(
         self,
         root_dir: Optional[Union[str, Path]] = None,
         infer_metadata: bool = True,
-        strict: bool = False
+        strict: bool = False,
+        return_filepaths: bool = False
     ) -> List[Dict]:
         """
         Recursively collect all result files under the specified output directory.
@@ -204,9 +258,11 @@ class ResultEmitter:
 
         Returns:
             List[dict]: List of parsed result dictionaries, enriched with inferred metadata when possible.
+            If return_filepaths == True, then we also return a List[Path] of file paths.
         """
         root = Path(root_dir or self.root_dir)
         results = []
+        result_filepaths = []
 
         if root_dir is not None and infer_metadata and root != self.root_dir:
             logger.warning(
@@ -241,6 +297,8 @@ class ResultEmitter:
                     data.update(metadata)
 
                 results.append(data)
+                if return_filepaths:
+                    result_filepaths.append(file)
 
             except Exception as e:
                 raise ValueError(
@@ -249,7 +307,10 @@ class ResultEmitter:
                     f"Error: {e}"
                 )
 
-        return results
+        if not return_filepaths:
+            return results
+        else:
+            return results, result_filepaths
 
 
     def _resolve_output_path(self, job: dict) -> str:

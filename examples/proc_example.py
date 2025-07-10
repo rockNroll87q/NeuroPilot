@@ -11,7 +11,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 ba_path = os.path.join(script_dir, '../')
 sys.path.append(os.path.abspath(ba_path))
 
-from neuropilot import ConfigLoader, JobCreator, JobRunner, ResultManager, aggregate_results
+from neuropilot import ConfigLoader, JobCreator, JobRunner
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Script to quickly see what examples are parsed as.')

@@ -20,9 +20,88 @@ See `aggregate_results` docstring for details.
 
 """
 import pandas as pd
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
+
+class ResultSet:
+    def __init__(
+        self,
+        dataframe: pd.DataFrame,
+        index_fields: List[str],
+        metric_fields: List[str],
+        param_fields: List[str],
+        results_raw: List[Dict],
+        other_fields: Optional[List[str]] = None,
+        output_field: Optional[str] = None,
+        flattened: Optional[bool] = False,
+    ):
+        self.df = dataframe
+        self.index_fields = index_fields
+        self.metric_fields = metric_fields
+        self.param_fields = param_fields
+        self.output_field = output_field
+        self.results_raw = results_raw
+        self.flattened = flattened
+        self.other_fields = other_fields or []
+
+    def filter_by(self, **kwargs) -> "ResultSet":
+        mask = pd.Series(True, index=self.df.index)
+        for key, value in kwargs.items():
+            mask &= self.df[key] == value
+        filtered_df = self.df[mask].copy()
+
+        # Get the subset of original results matching the filter
+        filtered_jobs = [
+            r for r in self.results_raw
+            if all(r.get(k) == v for k, v in kwargs.items())
+        ]
+
+        metric_fields = _auto_detect_fields(filtered_jobs, key="results", 
+                                            nested=self.output_field is not None or self.flattened, 
+                                            flatten=self.flattened)
+        param_fields = _auto_detect_fields(filtered_jobs, key="params")
+
+        relevant_cols = (
+            self.index_fields +
+            metric_fields +
+            param_fields +
+            self.other_fields + 
+            ([self.output_field] if self.output_field else [])
+        )
+        relevant_cols = [c for c in relevant_cols if c in filtered_df.columns]
+
+        return ResultSet(
+            dataframe=filtered_df[relevant_cols],
+            index_fields=self.index_fields,
+            metric_fields=metric_fields,
+            param_fields=param_fields,
+            results_raw=filtered_jobs,
+            other_fields=self.other_fields,
+            output_field=self.output_field,
+            flattened=self.flattened
+        )
+    
+    def get_values_for(self, var_name: str) -> set:
+        """
+        Return a set of unique non-null values for a given variable/column.
+
+        Args:
+            var_name (str): Column name (e.g., 'dataset_name', 'task_name', etc.)
+
+        Returns:
+            Set[Any]: Set of unique values for that column in the current DataFrame.
+        """
+        if var_name not in self.df.columns:
+            raise ValueError(f"Column '{var_name}' not found in the dataset.")
+        return set(self.df[var_name].dropna().unique())
+
+    def summary(self) -> pd.DataFrame:
+        return self.df.describe(include="all")
+
+    def to_dataframe(self) -> pd.DataFrame:
+        return self.df.copy()
 
 
+# ---- Modified aggregate_results ----
 def aggregate_results(
     results: List[Dict],
     index_fields: Optional[List[str]] = None,
@@ -33,94 +112,23 @@ def aggregate_results(
     strict: bool = True,
     flatten_nested: bool = False,
     long_format: bool = False,
-    long_output_field: str = "output_var"
-) -> pd.DataFrame:
-    """
-    Aggregates a list of result dictionaries into a structured pandas DataFrame.
-
-    Each result dictionary is expected to contain:
-        - Top-level fields (e.g., job_id, task_name)
-        - A 'results' dictionary (possibly nested)
-        - A 'params' dictionary with parameter values
-
-    This function supports multiple output modes depending on your result structure and analysis needs.
-
-    Args:
-        results (List[Dict]):
-            A list of job result dictionaries, typically produced by a ResultEmitter or ResultLoader.
-
-        index_fields (List[str], optional):
-            Top-level keys from each result to include as identifying columns (e.g., ['job_id', 'task_name']).
-
-        metric_fields (List[str], optional):
-            Specific metric keys to extract from the 'results' dictionary. 
-            If not provided and `auto_detect_metrics=True`, all keys across results will be inferred.
-
-        param_fields (List[str], optional):
-            Parameter keys to extract from the 'params' dictionary. 
-            If not provided and `auto_detect_params=True`, they will be inferred.
-
-        auto_detect_metrics (bool):
-            If True, automatically detect all metric keys from the results.
-
-        auto_detect_params (bool):
-            If True, automatically detect all param keys from the results.
-
-        strict (bool):
-            If True, raise an error if any expected field is missing.
-            If False, missing values are filled with `None` (NaN in the DataFrame).
-
-        flatten_nested (bool):
-            If True and the 'results' field contains nested dictionaries (e.g., per output variable),
-            the metrics will be flattened into columns like `var1.accuracy`.
-
-        long_format (bool):
-            If True and the 'results' field contains nested dictionaries,
-            a long-format table is returned with one row per output variable.
-            In this mode:
-                - `metric_fields` become separate columns
-                - `long_output_field` is added as a column with the output variable key (e.g., 'label')
-
-        long_output_field (str):
-            Column name to use for the output variable identifier in long-format mode.
-
-    Returns:
-        pd.DataFrame:
-            A DataFrame where each row corresponds to a job (or output variable if long_format=True).
-            Columns include selected index fields, metrics, and parameters.
-
-    Raises:
-        ValueError:
-            If expected keys are missing and `strict=True`, or if the results list is malformed.
-
-    Example:
-        >>> df = aggregate_results(
-        ...     results,
-        ...     index_fields=["job_id", "dataset_name"],
-        ...     auto_detect_metrics=True,
-        ...     auto_detect_params=True
-        ... )
-
-    Example (long format with nested metrics):
-        >>> df = aggregate_results(
-        ...     results,
-        ...     long_format=True,
-        ...     long_output_field="label",
-        ...     auto_detect_metrics=True
-        ... )
-    """
+    long_output_field: str = "output_var",
+    other_fields: Optional[List[str]] = None,
+) -> ResultSet:
 
     if not results:
         raise ValueError("No results provided for aggregation.")
 
     index_fields = index_fields or []
+    other_fields = other_fields or []
 
     metric_fields = metric_fields or (
-        _auto_detect_fields(results, key="results", nested=long_format or flatten_nested)
-        if auto_detect_metrics else None
+        _auto_detect_fields(results, key="results", nested=long_format or flatten_nested, flatten=flatten_nested)
+        if auto_detect_metrics else []
     )
     param_fields = param_fields or (
-        _auto_detect_fields(results, key="params") if auto_detect_params else None
+        _auto_detect_fields(results, key="params")
+        if auto_detect_params else []
     )
 
     rows = []
@@ -131,6 +139,8 @@ def aggregate_results(
         base_row = _extract_fields(result, index_fields, section="index", index=i, strict=strict)
         param_row = _extract_nested_fields(result.get("params", {}), param_fields, section="params", index=i, strict=strict)
         base_row.update(param_row)
+
+        base_row.update(_extract_fields(result, other_fields, section="other", index=i, strict=strict))
 
         metrics = result.get("results", {})
         if not isinstance(metrics, dict):
@@ -147,30 +157,41 @@ def aggregate_results(
             base_row.update(metric_row)
             rows.append(base_row)
 
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+
+    return ResultSet(
+        dataframe=df,
+        index_fields=index_fields,
+        metric_fields=metric_fields,
+        param_fields=param_fields,
+        results_raw=results,
+        other_fields=other_fields,
+        output_field=long_output_field if long_format else None,
+        flattened=flatten_nested
+    )
 
 
-def _auto_detect_fields(results: List[Dict], key: str, nested: bool = False) -> List[str]:
+# ---- Helpers (unchanged except _auto_detect_fields) ----
+
+def _auto_detect_fields(results: List[Dict], key: str, nested: bool = False, flatten: bool = False) -> List[str]:
     fields = set()
     for r in results:
         section = r.get(key)
         if isinstance(section, dict):
             if nested and _is_nested_dict(section):
-                for sub in section.values():
+                for outer_key, sub in section.items():
                     if isinstance(sub, dict):
-                        fields.update(sub.keys())
+                        if flatten:
+                            for inner_key in sub:
+                                fields.add(f"{outer_key}.{inner_key}")
+                        else:
+                            fields.update(sub.keys())
             else:
                 fields.update(section.keys())
     return sorted(fields)
 
 
-def _extract_fields(
-    source: Dict,
-    keys: List[str],
-    section: str,
-    index: int,
-    strict: bool
-) -> Dict[str, Optional[any]]:
+def _extract_fields(source: Dict, keys: List[str], section: str, index: int, strict: bool) -> Dict[str, Optional[Any]]:
     output = {}
     for key in keys:
         if key in source:
@@ -181,14 +202,7 @@ def _extract_fields(
             output[key] = None
     return output
 
-
-def _extract_nested_fields(
-    nested: Dict,
-    keys: Optional[List[str]],
-    section: str,
-    index: int,
-    strict: bool
-) -> Dict[str, Optional[any]]:
+def _extract_nested_fields(nested: Dict, keys: Optional[List[str]], section: str, index: int, strict: bool) -> Dict[str, Optional[Any]]:
     if not isinstance(nested, dict):
         if strict:
             raise ValueError(f"Missing or invalid '{section}' block in result #{index}.")
@@ -204,7 +218,6 @@ def _extract_nested_fields(
             output[key] = None
     return output
 
-
 def _format_flat(metrics: Dict, base_row: Dict) -> Dict:
     flat_metrics = {}
     for outer_key, subdict in metrics.items():
@@ -215,7 +228,6 @@ def _format_flat(metrics: Dict, base_row: Dict) -> Dict:
     row.update(flat_metrics)
     return row
 
-
 def _format_long_nested(
     metrics: Dict,
     base_row: Dict,
@@ -224,10 +236,6 @@ def _format_long_nested(
     index: int,
     strict: bool
 ) -> List[Dict]:
-    """
-    Format nested results into long format with one row per output_var.
-    Produces a row with each metric as a column.
-    """
     long_rows = []
     for outer_key, subdict in metrics.items():
         if not isinstance(subdict, dict):
@@ -249,8 +257,6 @@ def _format_long_nested(
         long_rows.append(row)
 
     return long_rows
-
-
 
 def _is_nested_dict(d: Dict) -> bool:
     return all(isinstance(v, dict) for v in d.values())
