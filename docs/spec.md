@@ -49,13 +49,16 @@ tasks:
 
 Each dataset defines:
 - Root data path
+- An optional dataset-level `param_set` applied to all tasks in that dataset
 - A list of tasks to run
-- Any required overrides or param sweeps specific to this dataset
+- Any required overrides or param sweeps specific to individual task entries
 
 ```yaml
 datasets:
   dataset_alpha:
     root: /mnt/data/alpha
+    param_set:                        # Optional: applied to every task in this dataset
+      augmentation: [true, false]
     tasks:
       - name: finetune_all
         output_vars: [label1, label2]
@@ -126,6 +129,8 @@ tasks:
 datasets:
   dataset_alpha:
     root: /mnt/data/alpha
+    param_set:                        # Applied to all tasks in dataset_alpha
+      augmentation: [true, false]
     tasks:
       - name: finetune_all
         output_vars: [label1, label2]
@@ -133,7 +138,7 @@ datasets:
       - name: depth_sweep
         output_vars: [label3]
         param_set:
-          finetune_depth: null
+          finetune_depth: null        # Removes inherited finetune_depth sweep
 
   dataset_beta:
     root: /mnt/data/beta
