@@ -35,8 +35,8 @@ NeuroPilot/
 │   └── test_job_creator.py
 ├── docs/                  # Extended documentation
 │   ├── results.md         # Result emission, collection, and aggregation
-│   ├── advanced.md        # 3rd-party integrations and advanced patterns
-│   └── pec.md             # Full YAML protocol specification
+│   ├── spec.md            # Full YAML protocol specification
+│   └── advanced.md        # 3rd-party integrations and advanced patterns
 ├── __init__.py
 └── README.md
 ```
@@ -128,7 +128,7 @@ See **[docs/results.md](docs/results.md)** for the full guide, including:
 - Automatic expansion into per-job configurations
 - Platform-agnostic execution (Slurm, subprocess, or custom)
 - Built-in config validation with informative error messages
-- Composable interfaces: `ConfigLoader`, `JobCreator`, `JobRunner`, `ResultEmitter`, and more
+- Composable interfaces: `ConfigLoader`, `JobCreator`, `JobRunner`, `ResultEmitter`, `ResultLoader`, `RemoteResultFetcher`, and more
 - Unopinionated — most defaults can be overridden
 
 ---
