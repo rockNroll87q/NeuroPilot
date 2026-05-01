@@ -45,11 +45,29 @@ NeuroPilot/
 
 ## 🚀 Quick Start
 
-### 1. Install requirements
+### 1. Install
+ 
 
+**Directly from GitHub:**
+ 
 ```bash
-pip install -r requirements.txt  # currently none strictly required
+pip install git+https://github.com/your-org/NeuroPilot.git
 ```
+ 
+With optional integrations:
+ 
+```bash
+pip install "neuropilot[wandb] @ git+https://github.com/your-org/NeuroPilot.git"
+pip install "neuropilot[mlflow] @ git+https://github.com/your-org/NeuroPilot.git"
+```
+ 
+**From a local clone:**
+ 
+```bash
+git clone https://github.com/your-org/NeuroPilot.git
+pip install ./NeuroPilot
+```
+
 
 ### 2. Create a config file
 

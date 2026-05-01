@@ -1,3 +1,27 @@
 [build-system]
 requires = ["setuptools>=42"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "neuropilot"
+version = "0.1.0"
+description = "NeuroPilot: Lightweight multi-dataset DL/ML experiment manager"
+authors = [
+    { name = "Austin Dibble", email = "you@example.com" }
+]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.7"
+dependencies = [
+    "pyyaml>=5.3",
+    "pandas>=1.1.0",
+    "loguru>=0.6.0",
+]
+
+[project.optional-dependencies]
+wandb = ["wandb"]
+mlflow = ["mlflow"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["neuropilot*"]
