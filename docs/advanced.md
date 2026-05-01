@@ -113,7 +113,7 @@ wandb.log({"accuracy": 0.91})
 
 ```python
 from neuropilot.results import WandbFetcher
-from neuropilot import aggregate_results
+from neuropilot.aggregation import aggregate_results
 
 fetcher = WandbFetcher(project="my_project", entity="my_team")
 results = fetcher.collect(jobs)

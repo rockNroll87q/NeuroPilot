@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuropilot"
-version = "0.1.0"
+version = "0.1.1"
 description = "NeuroPilot: Lightweight multi-dataset DL/ML experiment manager"
 authors = [
     { name = "Austin Dibble", email = "you@example.com" }

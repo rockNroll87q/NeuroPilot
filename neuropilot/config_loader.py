@@ -380,7 +380,7 @@ conflict with those given in the dataset definition '{dataset_name}'. Use overri
         
         # Also, verify that if a param set item isn't a list, we yield an error
         for p_key in param_keys:
-            if not isinstance(param_set[p_key], (list, tuple, set)):
+            if (not isinstance(param_set[p_key], (list, tuple, set))) and param_set[p_key] is not None:
                 raise ConfigValidationError(
                     f"In '{scope_name}, 'param_set' entry {p_key} must be a list, tuple or set! It is currently a {type(param_set[p_key])}."
                 )
